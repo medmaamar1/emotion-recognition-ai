@@ -1,0 +1,22 @@
+# Data and Datasets
+dataset_root/
+RAF-AU/
+*.zip
+*.tar.gz
+*.7z
+
+# Model Checkpoints
+models/*.pth
+vllm_checkpoints/
+
+# Python/Environment
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+.ipynb_checkpoints/
+
+# System Files
+.DS_Store
+Thumbs.db
