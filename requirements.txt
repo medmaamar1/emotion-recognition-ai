@@ -20,3 +20,11 @@ tqdm
 tensorboard
 python-dotenv
 bitsandbytes
+# Advanced model architectures
+timm>=0.9.0
+# Hyperparameter optimization
+optuna>=3.0.0
+# Experiment tracking
+wandb>=0.15.0
+# Additional utilities
+pytorch-metric-learning>=2.0.0
