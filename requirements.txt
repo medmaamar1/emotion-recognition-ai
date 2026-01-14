@@ -9,6 +9,7 @@ mediapipe
 pandas
 numpy
 matplotlib
+seaborn>=0.11.0
 scikit-learn
 gradio
 streamlit
@@ -28,3 +29,5 @@ optuna>=3.0.0
 wandb>=0.15.0
 # Additional utilities
 pytorch-metric-learning>=2.0.0
+# CLIP for zero-shot classification
+git+https://github.com/openai/CLIP.git
