@@ -1,4 +1,5 @@
 import os
+import sys
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -8,22 +9,24 @@ import numpy as np
 from tqdm import tqdm
 import pandas as pd
 
-import sys
+# Add parent directory to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from config import get_config
 from scripts.dataset import RAFCEDataset
 from models.baseline import FERBaseline
 
 print("Starting script execution...")
 
 def train_model(model_type='resnet50', epochs=20, batch_size=32, lr=1e-4):
+    """Train the baseline model using config-based paths."""
+    # Load configuration
+    config = get_config()
+    print(f"Running on Kaggle: {config['is_kaggle']}")
+    
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
-
-    # Paths
-    DATA_ROOT = r"c:\Users\OrdiOne\Desktop\emotion recognition ai\RAF-AU\aligned"
-    PARTITION_FILE = r"c:\Users\OrdiOne\Desktop\emotion recognition ai\RAFCE_partition.txt"
-    EMOTION_FILE = r"c:\Users\OrdiOne\Desktop\emotion recognition ai\RAFCE_emolabel.txt"
-    AU_FILE = r"c:\Users\OrdiOne\Desktop\emotion recognition ai\RAFCE_AUlabel.txt"
+    print(f"Output directory: {config['output_dir']}")
+    print(f"Checkpoint directory: {config['checkpoint_dir']}")
 
     # Transforms
     train_transform = transforms.Compose([
@@ -41,9 +44,9 @@ def train_model(model_type='resnet50', epochs=20, batch_size=32, lr=1e-4):
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    # Datasets
-    train_dataset = RAFCEDataset(DATA_ROOT, PARTITION_FILE, EMOTION_FILE, AU_FILE, partition_id=0, transform=train_transform, use_aligned=True)
-    val_dataset = RAFCEDataset(DATA_ROOT, PARTITION_FILE, EMOTION_FILE, AU_FILE, partition_id=2, transform=val_transform, use_aligned=True)
+    # Datasets - using config defaults
+    train_dataset = RAFCEDataset(partition_id=0, transform=train_transform, use_aligned=True)
+    val_dataset = RAFCEDataset(partition_id=2, transform=val_transform, use_aligned=True)
 
     # Calculate Weights for Imbalance Mitigation
     targets = [train_dataset.emotions[img_id] for img_id in train_dataset.image_ids]
@@ -54,8 +57,13 @@ def train_model(model_type='resnet50', epochs=20, batch_size=32, lr=1e-4):
     sampler = WeightedRandomSampler(sample_weights, len(sample_weights))
     
     print("Initializing DataLoaders...")
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=sampler, num_workers=0)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
+    num_workers = config['train_config']['num_workers']
+    pin_memory = config['train_config']['pin_memory']
+    
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=sampler,
+                             num_workers=num_workers, pin_memory=pin_memory)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False,
+                           num_workers=num_workers, pin_memory=pin_memory)
 
     # Model, Loss, Optimizer
     print(f"Building {model_type} model...")
@@ -112,11 +120,35 @@ def train_model(model_type='resnet50', epochs=20, batch_size=32, lr=1e-4):
         
         if val_acc > best_val_acc:
             best_val_acc = val_acc
-            torch.save(model.state_dict(), f"models/{model_type}_best.pth")
-            print("Saved best model!")
+            # Save to checkpoint directory from config
+            checkpoint_path = os.path.join(config['checkpoint_dir'], f"{model_type}_best.pth")
+            torch.save(model.state_dict(), checkpoint_path)
+            print(f"Saved best model to {checkpoint_path}!")
             
         scheduler.step()
 
 if __name__ == "__main__":
     # To run: python training/train_baseline.py
-    train_model(model_type='resnet50', epochs=10)
+    # Or on Kaggle: python training/train_baseline.py --epochs 50 --batch_size 32
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Train baseline emotion recognition model')
+    parser.add_argument('--model_type', type=str, default='resnet50', help='Model architecture')
+    parser.add_argument('--epochs', type=int, default=10, help='Number of epochs')
+    parser.add_argument('--batch_size', type=int, default=32, help='Batch size')
+    parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate')
+    
+    args = parser.parse_args()
+    
+    print("=" * 60)
+    print("Training Configuration")
+    print("=" * 60)
+    print(f"Model Type: {args.model_type}")
+    print(f"Epochs: {args.epochs}")
+    print(f"Batch Size: {args.batch_size}")
+    print(f"Learning Rate: {args.lr}")
+    print("=" * 60)
+    print()
+    
+    train_model(model_type=args.model_type, epochs=args.epochs,
+                batch_size=args.batch_size, lr=args.lr)

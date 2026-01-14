@@ -1,9 +1,14 @@
 import os
+import sys
 import pandas as pd
 import torch
 from torch.utils.data import Dataset
 from PIL import Image
 import numpy as np
+
+# Add parent directory to path to import config
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config import get_config
 
 class RAFCEDataset(Dataset):
     """
@@ -14,22 +19,50 @@ class RAFCEDataset(Dataset):
     8: Fearfully disgusted, 9: Angrily surprised, 10: Angrily disgusted,
     11: Disgustedly surprised, 12: Happily fearful, 13: Happily sad
     """
-    def __init__(self, root_dir, partition_file, emotion_file, au_file, partition_id, transform=None, use_aligned=False):
-        self.root_dir = root_dir
+    def __init__(self, root_dir=None, partition_file=None, emotion_file=None, au_file=None, partition_id=0, transform=None, use_aligned=False):
+        """
+        Initialize RAF-CE Dataset.
+        
+        Args:
+            root_dir: Path to image directory. If None, uses config default.
+            partition_file: Path to partition file. If None, uses config default.
+            emotion_file: Path to emotion label file. If None, uses config default.
+            au_file: Path to AU label file. If None, uses config default.
+            partition_id: 0 for train, 1 for test, 2 for validation
+            transform: Image transformations
+            use_aligned: Whether to use aligned images
+        """
+        # Load config for default paths
+        config = get_config()
+        
+        self.root_dir = root_dir if root_dir is not None else (config['data_root_aligned'] if use_aligned else config['data_root_raw'])
+        self.partition_file = partition_file if partition_file is not None else config['partition_file']
+        self.emotion_file = emotion_file if emotion_file is not None else config['emotion_file']
+        self.au_file = au_file if au_file is not None else config['au_file']
         self.transform = transform
         self.use_aligned = use_aligned
         
+        # Verify paths exist
+        if not os.path.exists(self.root_dir):
+            raise FileNotFoundError(f"Image directory not found: {self.root_dir}")
+        if not os.path.exists(self.partition_file):
+            raise FileNotFoundError(f"Partition file not found: {self.partition_file}")
+        if not os.path.exists(self.emotion_file):
+            raise FileNotFoundError(f"Emotion file not found: {self.emotion_file}")
+        if not os.path.exists(self.au_file):
+            raise FileNotFoundError(f"AU file not found: {self.au_file}")
+        
         # Load partitions
-        partition_df = pd.read_csv(partition_file, sep=' ', header=None, names=['image_id', 'partition_id'])
+        partition_df = pd.read_csv(self.partition_file, sep=' ', header=None, names=['image_id', 'partition_id'])
         self.image_ids = partition_df[partition_df['partition_id'] == partition_id]['image_id'].values
         
         # Load emotion labels
-        emotion_df = pd.read_csv(emotion_file, sep=' ', header=None, names=['image_id', 'label'])
+        emotion_df = pd.read_csv(self.emotion_file, sep=' ', header=None, names=['image_id', 'label'])
         self.emotions = emotion_df.set_index('image_id')['label'].to_dict()
         
         # Load AU labels
         self.aus = {}
-        with open(au_file, 'r') as f:
+        with open(self.au_file, 'r') as f:
             for line in f:
                 parts = line.strip().split(' ')
                 img_id = parts[0]
@@ -38,6 +71,8 @@ class RAFCEDataset(Dataset):
 
         # Filter image_ids that exist in emotion labels
         self.image_ids = [img_id for img_id in self.image_ids if img_id in self.emotions]
+        
+        print(f"Loaded {len(self.image_ids)} images for partition {partition_id} from {self.root_dir}")
 
     def __len__(self):
         return len(self.image_ids)
@@ -68,22 +103,56 @@ class RAFCEDataset(Dataset):
         }
 
 if __name__ == "__main__":
-    # Test the dataset loading
-    DATA_ROOT_RAW = r"c:\Users\OrdiOne\Desktop\emotion recognition ai\dataset_root\RAF-AU\original"
-    DATA_ROOT_ALIGNED = r"c:\Users\OrdiOne\Desktop\emotion recognition ai\RAF-AU\aligned"
-    PARTITION_FILE = r"c:\Users\OrdiOne\Desktop\emotion recognition ai\RAFCE_partition.txt"
-    EMOTION_FILE = r"c:\Users\OrdiOne\Desktop\emotion recognition ai\RAFCE_emolabel.txt"
-    AU_FILE = r"c:\Users\OrdiOne\Desktop\emotion recognition ai\RAFCE_AUlabel.txt"
+    # Test the dataset loading using config
+    config = get_config()
+    print("=" * 60)
+    print("Testing Dataset Loading")
+    print("=" * 60)
+    print(f"Running on Kaggle: {config['is_kaggle']}")
+    print()
     
     # Test Aligned
-    print("Testing Aligned Dataset...")
+    print("Testing Aligned Dataset (Train)...")
     try:
-        aligned_dataset = RAFCEDataset(DATA_ROOT_ALIGNED, PARTITION_FILE, EMOTION_FILE, AU_FILE, partition_id=0, use_aligned=True)
+        aligned_dataset = RAFCEDataset(partition_id=0, use_aligned=True)
         print(f"Aligned Train Dataset size: {len(aligned_dataset)}")
         if len(aligned_dataset) > 0:
             sample = aligned_dataset[0]
-            print(f"Sample Image ID (label ref): {sample['image_id']}")
-            print(f"Sample Label: {sample['label']}")
+            print(f"Sample Image ID: {sample['image_id']}")
+            print(f"Sample Label: {sample['label'].item()}")
             print(f"Sample AUs: {sample['aus']}")
     except Exception as e:
         print(f"Error loading aligned dataset: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    print()
+    
+    # Test Raw
+    print("Testing Raw Dataset (Train)...")
+    try:
+        raw_dataset = RAFCEDataset(partition_id=0, use_aligned=False)
+        print(f"Raw Train Dataset size: {len(raw_dataset)}")
+        if len(raw_dataset) > 0:
+            sample = raw_dataset[0]
+            print(f"Sample Image ID: {sample['image_id']}")
+            print(f"Sample Label: {sample['label'].item()}")
+            print(f"Sample AUs: {sample['aus']}")
+    except Exception as e:
+        print(f"Error loading raw dataset: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    print()
+    
+    # Test Test partition
+    print("Testing Aligned Dataset (Test)...")
+    try:
+        test_dataset = RAFCEDataset(partition_id=1, use_aligned=True)
+        print(f"Aligned Test Dataset size: {len(test_dataset)}")
+    except Exception as e:
+        print(f"Error loading test dataset: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    print("=" * 60)
