@@ -3,8 +3,10 @@ Comprehensive logging and experiment tracking utilities.
 """
 
 import os
+import sys
 import json
 import time
+import logging
 from datetime import datetime
 import torch
 import numpy as np
@@ -16,6 +18,50 @@ try:
 except ImportError:
     WANDB_AVAILABLE = False
     print("Warning: wandb not available. Install with: pip install wandb")
+
+
+def setup_logger(log_dir, name, level=logging.INFO):
+    """
+    Setup a logger with file and console handlers.
+    
+    Args:
+        log_dir: Directory to save log files
+        name: Name of the logger
+        level: Logging level (default: logging.INFO)
+    
+    Returns:
+        Configured logger instance
+    """
+    # Create log directory if it doesn't exist
+    os.makedirs(log_dir, exist_ok=True)
+    
+    # Create logger
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    
+    # Remove existing handlers to avoid duplicates
+    logger.handlers.clear()
+    
+    # Create formatters
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    
+    # Console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(level)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+    
+    # File handler
+    log_file = os.path.join(log_dir, f'{name}.log')
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setLevel(level)
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+    
+    return logger
 
 
 class ExperimentTracker:
@@ -506,6 +552,7 @@ if __name__ == "__main__":
     # Test ModelCheckpoint
     print("\nTesting ModelCheckpoint...")
     import tempfile
+    import torch.nn as nn
     with tempfile.TemporaryDirectory() as tmpdir:
         checkpoint = ModelCheckpoint(tmpdir, monitor='val_loss', mode='min', verbose=True)
         
