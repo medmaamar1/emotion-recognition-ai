@@ -104,7 +104,12 @@ try:
     print(f"  - Image ID: {sample['image_id']}")
     print(f"  - Label: {sample['label'].item()}")
     print(f"  - AUs: {sample['aus']}")
-    print(f"  - Image shape: {sample['image'].shape}")
+    # Handle both PIL Image and tensor cases
+    if hasattr(sample['image'], 'shape'):
+        print(f"  - Image shape: {sample['image'].shape}")
+    else:
+        print(f"  - Image type: {type(sample['image'])}")
+        print(f"  - Image size: {sample['image'].size}")
     
 except Exception as e:
     print(f"✗ Error loading dataset: {e}")
