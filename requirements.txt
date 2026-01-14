@@ -7,7 +7,7 @@ datasets
 opencv-python
 mediapipe
 pandas
-numpy
+numpy<2.0
 matplotlib
 seaborn>=0.11.0
 scikit-learn
