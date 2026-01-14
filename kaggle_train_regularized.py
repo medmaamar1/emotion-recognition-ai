@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Regularized Kaggle Training Script for Emotion Recognition
 This script implements overfitting fixes: dropout, label smoothing, gradient clipping, reduced LR.
@@ -21,7 +20,7 @@ from sklearn.metrics import classification_report, f1_score, precision_recall_fs
 # Import configuration and modules
 from config import get_config
 from scripts.dataset import RAFCEDataset
-from models.baseline_regularized import FERBaselineRegularized, FERBaselineWithLabelSmoothing
+from models.baseline_regularized import FERBaselineRegularized
 from utils.logger import setup_logger
 from training.schedulers import CosineAnnealingWarmupScheduler
 
@@ -147,8 +146,7 @@ def train_model(config, args):
     logger.info(f"Learning rate: {args.lr}")
     logger.info(f"Use augmentation: {args.augmentation}")
     logger.info(f"Dropout rate: {args.dropout_rate}")
-    logger.info(f"Use label smoothing: {args.use_label_smoothing}")
-    logger.info(f"Label smoothing factor: {args.smoothing}")
+    logger.info(f"Label smoothing: {args.smoothing}")
     logger.info(f"Gradient clipping: {args.grad_clip}")
     logger.info(f"Weight decay: {args.weight_decay}")
     logger.info(f"Early stopping patience: {args.patience}")
@@ -168,23 +166,13 @@ def train_model(config, args):
     # Create regularized model
     logger.info(f"Creating {args.model} model with regularization...")
     
-    if args.use_label_smoothing:
-        model = FERBaselineWithLabelSmoothing(
-            model_type=args.model, 
-            num_classes=config['model_config']['num_classes'],
-            pretrained=True,
-            smoothing=args.smoothing,
-            dropout_rate=args.dropout_rate
-        ).to(device)
-        logger.info("Using Label Smoothing in model")
-    else:
-        model = FERBaselineRegularized(
-            model_type=args.model, 
-            num_classes=config['model_config']['num_classes'],
-            pretrained=True,
-            dropout_rate=args.dropout_rate
-        ).to(device)
-        logger.info("Using standard CrossEntropyLoss")
+    model = FERBaselineRegularized(
+        model_type=args.model, 
+        num_classes=config['model_config']['num_classes'],
+        pretrained=True,
+        dropout_rate=args.dropout_rate
+    ).to(device)
+    logger.info("Using standard CrossEntropyLoss with Dropout")
     
     # Loss function - no class weights since we use WeightedRandomSampler
     criterion = nn.CrossEntropyLoss()
@@ -412,10 +400,6 @@ def main():
                        help='Disable data augmentation')
     parser.add_argument('--dropout_rate', type=float, default=0.3,
                        help='Dropout rate (default: 0.3)')
-    parser.add_argument('--use_label_smoothing', action='store_true', default=False,
-                       help='Use label smoothing in model')
-    parser.add_argument('--no_label_smoothing', action='store_false', dest='use_label_smoothing',
-                       help='Disable label smoothing')
     parser.add_argument('--smoothing', type=float, default=0.1,
                        help='Label smoothing factor (default: 0.1)')
     parser.add_argument('--weight_decay', type=float, default=1e-3,
@@ -448,7 +432,7 @@ def main():
     print(f"Learning Rate: {args.lr} (reduced from 0.001)")
     print(f"Augmentation: {args.augmentation}")
     print(f"Dropout Rate: {args.dropout_rate}")
-    print(f"Label Smoothing: {args.use_label_smoothing} (factor: {args.smoothing})")
+    print(f"Label Smoothing: {args.smoothing}")
     print(f"Weight Decay: {args.weight_decay} (increased from 1e-4)")
     print(f"Gradient Clipping: {args.grad_clip}")
     print(f"Patience: {args.patience}")
