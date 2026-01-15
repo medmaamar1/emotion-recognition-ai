@@ -106,6 +106,9 @@ def create_data_loaders(config, batch_size=32, use_augmentation=True):
     targets = [train_dataset.emotions[img_id] for img_id in train_dataset.image_ids]
     class_counts = np.bincount(targets)
     class_weights = 1.0 / torch.tensor(class_counts, dtype=torch.float)
+    # Normalize weights so they scale the loss appropriately (mean should be 1.0)
+    class_weights = class_weights / class_weights.mean()
+    
     sample_weights = class_weights[targets]
     
     sampler = WeightedRandomSampler(sample_weights, len(sample_weights))
