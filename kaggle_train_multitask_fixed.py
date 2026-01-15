@@ -113,6 +113,12 @@ def create_data_loaders(config, batch_size=32, use_augmentation=True):
     logger.info(f"Emotion class distribution: {class_counts}")
     logger.info(f"Number of AUs: {len(AU_LABELS)}")
     
+    # Check AU label distribution
+    train_null_count = sum(1 for img_id in train_dataset.image_ids if train_dataset.aus[img_id] == "null")
+    val_null_count = sum(1 for img_id in val_dataset.image_ids if val_dataset.aus[img_id] == "null")
+    logger.info(f"Training AU labels: {len(train_dataset)} samples, {train_null_count} null ({100*train_null_count/len(train_dataset):.1f}%)")
+    logger.info(f"Validation AU labels: {len(val_dataset)} samples, {val_null_count} null ({100*val_null_count/len(val_dataset):.1f}%)")
+    
     return train_loader, val_loader, class_weights
 
 def calculate_per_class_metrics(y_true, y_pred, num_classes=14):
@@ -345,6 +351,9 @@ def train_model(config, args):
                 torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
             
             optimizer.step()
+            
+            # Update running loss
+            running_loss += total_loss.item()
             
             _, predicted = torch.max(emotion_logits.data, 1)
             total += emotion_labels.size(0)
