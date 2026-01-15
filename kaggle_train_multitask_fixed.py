@@ -182,11 +182,11 @@ def calculate_au_metrics(au_true, au_pred, num_aus=18):
         )
         
         metrics = {
-            'au_macro_f1': f1,
-            'au_macro_precision': precision,
-            'au_macro_recall': recall,
-            'num_valid_samples': np.sum(valid_mask),
-            'num_null_samples': np.sum(valid_mask == 0)
+            'au_macro_f1': float(f1),
+            'au_macro_precision': float(precision),
+            'au_macro_recall': float(recall),
+            'num_valid_samples': int(np.sum(valid_mask)),
+            'num_null_samples': int(np.sum(valid_mask == 0))
         }
     else:
         metrics = {
@@ -194,7 +194,7 @@ def calculate_au_metrics(au_true, au_pred, num_aus=18):
             'au_macro_precision': 0.0,
             'au_macro_recall': 0.0,
             'num_valid_samples': 0,
-            'num_null_samples': np.sum(valid_mask == 0)
+            'num_null_samples': int(np.sum(valid_mask == 0))
         }
     
     return metrics

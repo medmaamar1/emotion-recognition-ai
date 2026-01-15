@@ -165,6 +165,8 @@ class FERMultiTaskWithAUAttention(nn.Module):
             self.backbone = models.resnet50(weights=models.ResNet50_Weights.DEFAULT if pretrained else None)
             in_features = self.backbone.fc.in_features
             self.backbone.fc = nn.Identity()
+            
+
         else:
             raise ValueError(f"Unknown backbone: {backbone}")
         
@@ -268,6 +270,8 @@ class FERMultiTaskWithCrossAttention(nn.Module):
             self.backbone = models.resnet50(weights=models.ResNet50_Weights.DEFAULT if pretrained else None)
             in_features = self.backbone.fc.in_features
             self.backbone.fc = nn.Identity()
+            
+
         else:
             raise ValueError(f"Unknown backbone: {backbone}")
         

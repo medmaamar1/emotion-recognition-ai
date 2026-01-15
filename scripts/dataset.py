@@ -14,12 +14,14 @@ from config import get_config
 AU_LABELS = ['AU1', 'AU2', 'AU4', 'AU5', 'AU6', 'AU7', 'AU9', 'AU10',
              'AU12', 'AU15', 'AU17', 'AU20', 'AU23', 'AU24', 'AU25', 'AU26', 'AU43', 'AU45']
 
+import re
+
 def parse_au_labels(au_str):
     """
     Parse AU string labels to binary vector.
     
     Args:
-        au_str: String like "AU1 AU2 AU4" or "null"
+        au_str: String like "AU1 AU2 AU4" or "1+2+4" or "null" or "L12+24"
     
     Returns:
         Binary vector of length 18 indicating which AUs are present
@@ -29,10 +31,23 @@ def parse_au_labels(au_str):
     if au_str == "null" or au_str is None:
         return au_vector
     
-    aus = au_str.split()
+    # Handle separators: usually mixed with + in RAF-CE
+    # Sanitize string: replace + with space
+    au_str_clean = au_str.replace('+', ' ')
+    aus = au_str_clean.split()
+    
     for au in aus:
-        if au in AU_LABELS:
-            idx = AU_LABELS.index(au)
+        # Extract number from string (e.g., "L12" -> "12", "AU1" -> "1", "1" -> "1")
+        digits = re.findall(r'\d+', au)
+        if not digits:
+            continue
+        
+        au_num = digits[0]
+        au_label = f"AU{au_num}"
+        
+        # Check against AU_LABELS (which stores "AU1", "AU2" etc.)
+        if au_label in AU_LABELS:
+            idx = AU_LABELS.index(au_label)
             au_vector[idx] = 1.0
     
     return au_vector
