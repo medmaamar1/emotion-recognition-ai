@@ -10,6 +10,33 @@ import numpy as np
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import get_config
 
+# Action Units list (18 AUs)
+AU_LABELS = ['AU1', 'AU2', 'AU4', 'AU5', 'AU6', 'AU7', 'AU9', 'AU10',
+             'AU12', 'AU15', 'AU17', 'AU20', 'AU23', 'AU24', 'AU25', 'AU26', 'AU43', 'AU45']
+
+def parse_au_labels(au_str):
+    """
+    Parse AU string labels to binary vector.
+    
+    Args:
+        au_str: String like "AU1 AU2 AU4" or "null"
+    
+    Returns:
+        Binary vector of length 18 indicating which AUs are present
+    """
+    au_vector = np.zeros(len(AU_LABELS), dtype=np.float32)
+    
+    if au_str == "null" or au_str is None:
+        return au_vector
+    
+    aus = au_str.split()
+    for au in aus:
+        if au in AU_LABELS:
+            idx = AU_LABELS.index(au)
+            au_vector[idx] = 1.0
+    
+    return au_vector
+
 class RAFCEDataset(Dataset):
     """
     RAF-CE Dataset for Compound Emotion Recognition and AU Detection.
@@ -19,7 +46,7 @@ class RAFCEDataset(Dataset):
     8: Fearfully disgusted, 9: Angrily surprised, 10: Angrily disgusted,
     11: Disgustedly surprised, 12: Happily fearful, 13: Happily sad
     """
-    def __init__(self, root_dir=None, partition_file=None, emotion_file=None, au_file=None, partition_id=0, transform=None, use_aligned=False):
+    def __init__(self, root_dir=None, partition_file=None, emotion_file=None, au_file=None, partition_id=0, transform=None, use_aligned=False, return_au_vector=True):
         """
         Initialize RAF-CE Dataset.
         
@@ -31,6 +58,7 @@ class RAFCEDataset(Dataset):
             partition_id: 0 for train, 1 for test, 2 for validation
             transform: Image transformations
             use_aligned: Whether to use aligned images
+            return_au_vector: Whether to return AU labels as binary vector (default: True)
         """
         # Load config for default paths
         config = get_config()
@@ -41,6 +69,7 @@ class RAFCEDataset(Dataset):
         self.au_file = au_file if au_file is not None else config['au_file']
         self.transform = transform
         self.use_aligned = use_aligned
+        self.return_au_vector = return_au_vector
         
         # Verify paths exist
         if not os.path.exists(self.root_dir):
@@ -95,12 +124,23 @@ class RAFCEDataset(Dataset):
         if self.transform:
             image = self.transform(image)
             
-        return {
-            'image': image,
-            'label': torch.tensor(label, dtype=torch.long),
-            'image_id': img_id,
-            'aus': au_labels
-        }
+        # Parse AU labels to binary vector if requested
+        if self.return_au_vector:
+            au_vector = parse_au_labels(au_labels)
+            return {
+                'image': image,
+                'label': torch.tensor(label, dtype=torch.long),
+                'image_id': img_id,
+                'aus': au_labels,
+                'au_vector': torch.tensor(au_vector, dtype=torch.float)
+            }
+        else:
+            return {
+                'image': image,
+                'label': torch.tensor(label, dtype=torch.long),
+                'image_id': img_id,
+                'aus': au_labels
+            }
 
 if __name__ == "__main__":
     # Test the dataset loading using config
