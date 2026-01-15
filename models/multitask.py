@@ -178,13 +178,21 @@ class FERMultiTaskWithAUAttention(nn.Module):
             nn.Dropout(dropout)
         )
         
-        # AU attention mechanism
+        # AU attention mechanism - learns which features are important for AU prediction
         self.au_attention = nn.Sequential(
             nn.Linear(512, 256),
             nn.ReLU(),
             nn.Dropout(dropout),
             nn.Linear(256, num_aus),
             nn.Sigmoid()
+        )
+        
+        # AU context projection - projects AU attention back to feature space
+        self.au_context = nn.Sequential(
+            nn.Linear(num_aus, 256),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(256, 512)
         )
         
         # Emotion classification head
@@ -219,11 +227,15 @@ class FERMultiTaskWithAUAttention(nn.Module):
         # Shared feature extraction
         shared = self.shared_features(features)
         
-        # AU attention
-        au_attention = self.au_attention(shared)
+        # AU attention - learns which AUs are active
+        au_attention = self.au_attention(shared)  # (batch, num_aus)
         
-        # Apply attention to shared features for AU prediction
-        attended_features = shared * au_attention
+        # Project AU attention back to feature space to create context
+        au_context = self.au_context(au_attention)  # (batch, 512)
+        
+        # Apply AU context to shared features for AU prediction
+        # This uses the AU context to modulate the shared features
+        attended_features = shared * torch.sigmoid(au_context)
         
         # Task-specific heads
         emotion_logits = self.emotion_head(shared)
