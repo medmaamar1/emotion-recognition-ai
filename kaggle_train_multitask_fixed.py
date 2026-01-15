@@ -302,13 +302,18 @@ def train_model(config, args):
             running_emotion_loss += emotion_loss.item()
             
             # Calculate AU loss only for samples with valid AU labels
-            # Create mask for valid AU labels
-            au_valid_mask = (au_labels_str != "null").float()
+            # Create mask for valid AU labels (samples that are not "null")
+            au_valid_mask = torch.tensor(
+                [1.0 if s != "null" else 0.0 for s in au_labels_str],
+                dtype=torch.float32,
+                device=device
+            )
             
             if au_valid_mask.sum() > 0:
                 # Only compute AU loss for valid samples
-                au_logits_valid = au_logits[au_valid_mask == 1]
-                au_labels_valid = au_labels[au_valid_mask == 1]
+                valid_indices = (au_valid_mask == 1).nonzero(as_tuple=True)[0]
+                au_logits_valid = au_logits[valid_indices]
+                au_labels_valid = au_labels[valid_indices]
                 au_loss_valid = au_criterion(au_logits_valid, au_labels_valid)
                 
                 # Scale AU loss to account for valid samples
@@ -382,11 +387,16 @@ def train_model(config, args):
                 val_emotion_loss += emotion_loss.item()
                 
                 # Calculate AU loss only for valid samples
-                au_valid_mask = (au_labels_str != "null").float()
+                au_valid_mask = torch.tensor(
+                    [1.0 if s != "null" else 0.0 for s in au_labels_str],
+                    dtype=torch.float32,
+                    device=device
+                )
                 
                 if au_valid_mask.sum() > 0:
-                    au_logits_valid = au_logits[au_valid_mask == 1]
-                    au_labels_valid = au_labels[au_valid_mask == 1]
+                    valid_indices = (au_valid_mask == 1).nonzero(as_tuple=True)[0]
+                    au_logits_valid = au_logits[valid_indices]
+                    au_labels_valid = au_labels[valid_indices]
                     au_loss_valid = au_criterion(au_logits_valid, au_labels_valid)
                     
                     # Scale AU loss
