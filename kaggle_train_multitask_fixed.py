@@ -29,17 +29,39 @@ from models.multitask import FERMultiTask, FERMultiTaskWithAUAttention
 from utils.logger import setup_logger
 from training.schedulers import CosineAnnealingWarmupScheduler
 
+class FocalLoss(nn.Module):
+    """
+    Focal Loss for dense object detection and imbalanced classification.
+    Formula: -alpha * (1 - pt)^gamma * log(pt)
+    """
+    def __init__(self, gamma=2.0, alpha=None, reduction='mean'):
+        super(FocalLoss, self).__init__()
+        self.gamma = gamma
+        self.alpha = alpha  # Can be a tensor of weights for each class
+        self.reduction = reduction
+
+    def forward(self, inputs, targets):
+        ce_loss = nn.functional.cross_entropy(inputs, targets, reduction='none', weight=self.alpha)
+        pt = torch.exp(-ce_loss)
+        focal_loss = ((1 - pt) ** self.gamma) * ce_loss
+
+        if self.reduction == 'mean':
+            return focal_loss.mean()
+        elif self.reduction == 'sum':
+            return focal_loss.sum()
+        else:
+            return focal_loss
+
 def get_transforms(use_augmentation=True):
     """Get data transforms for training and validation."""
     if use_augmentation:
+        # Use TrivialAugmentWide for state-of-the-art automated augmentation
         train_transform = transforms.Compose([
             transforms.Resize((224, 224)),
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomRotation(15),
-            transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
-            transforms.RandomAffine(degrees=0, translate=(0.1, 0.1)),
+            transforms.TrivialAugmentWide(),
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            transforms.RandomErasing(p=0.2)  # Add RandomErasing for robustness
         ])
     else:
         train_transform = transforms.Compose([
@@ -254,10 +276,22 @@ def train_model(config, args):
         ).to(device)
     
     # Loss functions
-    # Emotion classification loss (no class weights since we use WeightedRandomSampler)
-    emotion_criterion = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
+    # Loss functions
+    # Use Focal Loss to handle class imbalance
+    # Note: Focal Loss expects alpha to be the per-class weights
+    emotion_criterion = FocalLoss(gamma=2.0, alpha=class_weights.to(device))
+    
     # AU detection loss (binary cross entropy for multi-label)
     au_criterion = nn.BCEWithLogitsLoss(reduction='mean')
+    
+    # Freeze backbone if requested
+    if args.freeze_backbone:
+        logger.info("Freezing backbone layers...")
+        if hasattr(model, 'backbone'):
+            for param in model.backbone.parameters():
+                param.requires_grad = False
+        else:
+             logger.warning("Model does not have a 'backbone' attribute, skipping freeze.")
     
     # Optimizer with stronger regularization
     optimizer = optim.Adam(
@@ -634,6 +668,8 @@ def main():
                        help='Metric to monitor for early stopping (default: macro_f1)')
     parser.add_argument('--use_au_attention', action='store_true', default=False,
                        help='Use AU attention mechanism')
+    parser.add_argument('--freeze_backbone', action='store_true', default=False,
+                       help='Freeze backbone layers initially')
     
     args = parser.parse_args()
     
