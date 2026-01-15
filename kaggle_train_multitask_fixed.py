@@ -149,19 +149,28 @@ def calculate_per_class_metrics(y_true, y_pred, num_classes=14):
 def calculate_au_metrics(au_true, au_pred, num_aus=18):
     """
     Calculate AU prediction metrics (multi-label classification).
-    Only compute metrics for samples with valid AU labels.
+    
+    Args:
+        au_true: Binary vectors of shape (N, num_aus)
+        au_pred: Logits of shape (N, num_aus)
+        num_aus: Number of action units
+    
+    Returns:
+        Dictionary with AU metrics
     """
     # Apply sigmoid to get probabilities
     au_pred_prob = torch.sigmoid(torch.tensor(au_pred)).numpy()
     au_pred_binary = (au_pred_prob > 0.5).astype(int)
     
-    # Filter out samples with null AU labels
-    valid_mask = (au_true != "null").astype(int)
-    au_true_valid = au_true[valid_mask == 1]
-    au_pred_valid = au_pred_binary[valid_mask == 1]
+    # Filter out samples with all zeros (null labels)
+    # Samples with at least one active AU are considered valid
+    valid_mask = np.sum(au_true, axis=1) > 0
     
     if np.sum(valid_mask) > 0:
         # Calculate metrics only on valid samples
+        au_true_valid = au_true[valid_mask]
+        au_pred_valid = au_pred_binary[valid_mask]
+        
         precision, recall, f1, support = precision_recall_fscore_support(
             au_true_valid, au_pred_valid, average='macro', zero_division=0
         )
@@ -366,7 +375,7 @@ def train_model(config, args):
         val_preds = []
         val_labels = []
         val_au_preds = []
-        val_au_labels_str = []
+        val_au_labels = []  # Store binary vectors instead of strings
         
         with torch.no_grad():
             pbar = tqdm(val_loader, desc=f"Epoch {epoch+1}/{args.epochs} [Val]")
@@ -418,7 +427,7 @@ def train_model(config, args):
                 val_preds.extend(predicted.cpu().numpy())
                 val_labels.extend(emotion_labels.cpu().numpy())
                 val_au_preds.extend(au_logits.detach().cpu().numpy())
-                val_au_labels_str.extend(au_labels_str)
+                val_au_labels.extend(au_labels.cpu().numpy())
                 
                 pbar.set_postfix({
                     'loss': val_loss/len(val_loader),
@@ -437,8 +446,8 @@ def train_model(config, args):
         # Calculate metrics based on monitor setting
         metrics = calculate_per_class_metrics(val_labels, val_preds, num_classes=14)
         au_metrics = calculate_au_metrics(
-            np.array(val_au_labels_str), 
-            np.array(val_au_preds), 
+            np.array(val_au_labels),
+            np.array(val_au_preds),
             num_aus=18
         )
         
